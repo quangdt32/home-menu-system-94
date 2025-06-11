@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Plus, Search } from 'lucide-react';
+import { Plus, Search, Edit, Trash2 } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -14,8 +14,23 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { UserFormDialog } from '@/components/UserFormDialog';
+import { DeleteConfirmDialog } from '@/components/DeleteConfirmDialog';
+import { useToast } from '@/hooks/use-toast';
 
-const users = [
+interface User {
+  id: number;
+  name: string;
+  email: string;
+  department: string;
+  position: string;
+  phone: string;
+  status: string;
+  lastUpdate: string;
+  avatar: string;
+}
+
+const initialUsers: User[] = [
   {
     id: 1,
     name: 'Nguyễn Văn An',
@@ -52,13 +67,63 @@ const users = [
 ];
 
 export function UserManagement() {
+  const [users, setUsers] = useState<User[]>(initialUsers);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | undefined>();
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; user?: User }>({ open: false });
+  const { toast } = useToast();
 
   const filteredUsers = users.filter(user =>
     user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.department.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const handleAddUser = () => {
+    setEditingUser(undefined);
+    setIsFormOpen(true);
+  };
+
+  const handleEditUser = (user: User) => {
+    setEditingUser(user);
+    setIsFormOpen(true);
+  };
+
+  const handleSaveUser = (userData: Omit<User, 'id' | 'lastUpdate' | 'avatar'>) => {
+    const currentDate = new Date().toISOString().split('T')[0];
+    
+    if (editingUser) {
+      setUsers(users.map(user => 
+        user.id === editingUser.id 
+          ? { ...user, ...userData, lastUpdate: currentDate }
+          : user
+      ));
+    } else {
+      const newUser: User = {
+        id: Math.max(...users.map(u => u.id)) + 1,
+        ...userData,
+        lastUpdate: currentDate,
+        avatar: '/lovable-uploads/photo-1649972904349-6e44c42644a7'
+      };
+      setUsers([...users, newUser]);
+    }
+  };
+
+  const handleDeleteUser = (user: User) => {
+    setDeleteDialog({ open: true, user });
+  };
+
+  const confirmDelete = () => {
+    if (deleteDialog.user) {
+      setUsers(users.filter(u => u.id !== deleteDialog.user!.id));
+      toast({
+        title: "Xóa thành công",
+        description: `Người dùng ${deleteDialog.user.name} đã được xóa.`,
+      });
+    }
+    setDeleteDialog({ open: false });
+  };
 
   return (
     <div className="space-y-6">
@@ -69,7 +134,7 @@ export function UserManagement() {
             Quản lý thông tin người dùng trong hệ thống
           </p>
         </div>
-        <Button>
+        <Button onClick={handleAddUser}>
           <Plus className="h-4 w-4 mr-2" />
           Thêm mới
         </Button>
@@ -100,15 +165,14 @@ export function UserManagement() {
               <TableHeader>
                 <TableRow>
                   <TableHead>STT</TableHead>
+                  <TableHead>Ảnh đại diện</TableHead>
                   <TableHead>Tên nhân viên</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Bộ phận</TableHead>
                   <TableHead>Vị trí</TableHead>
                   <TableHead>Số điện thoại</TableHead>
                   <TableHead>Trạng thái</TableHead>
-                  <TableHead>Người cập nhật</TableHead>
                   <TableHead>Lần cập nhật cuối</TableHead>
-                  <TableHead>Ảnh đại diện</TableHead>
                   <TableHead>Hành động</TableHead>
                 </TableRow>
               </TableHeader>
@@ -116,6 +180,14 @@ export function UserManagement() {
                 {filteredUsers.map((user, index) => (
                   <TableRow key={user.id}>
                     <TableCell>{index + 1}</TableCell>
+                    <TableCell>
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage src={user.avatar} alt={user.name} />
+                        <AvatarFallback>
+                          {user.name.split(' ').map(n => n[0]).join('')}
+                        </AvatarFallback>
+                      </Avatar>
+                    </TableCell>
                     <TableCell className="font-medium">{user.name}</TableCell>
                     <TableCell>{user.email}</TableCell>
                     <TableCell>{user.department}</TableCell>
@@ -128,22 +200,23 @@ export function UserManagement() {
                         {user.status}
                       </Badge>
                     </TableCell>
-                    <TableCell>Administrator</TableCell>
                     <TableCell>{user.lastUpdate}</TableCell>
                     <TableCell>
-                      <Avatar className="h-8 w-8">
-                        <AvatarImage src={user.avatar} alt={user.name} />
-                        <AvatarFallback>
-                          {user.name.split(' ').map(n => n[0]).join('')}
-                        </AvatarFallback>
-                      </Avatar>
-                    </TableCell>
-                    <TableCell>
                       <div className="flex space-x-2">
-                        <Button variant="outline" size="sm">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleEditUser(user)}
+                        >
+                          <Edit className="h-3 w-3 mr-1" />
                           Sửa
                         </Button>
-                        <Button variant="outline" size="sm">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleDeleteUser(user)}
+                        >
+                          <Trash2 className="h-3 w-3 mr-1" />
                           Xóa
                         </Button>
                       </div>
@@ -155,6 +228,21 @@ export function UserManagement() {
           </div>
         </CardContent>
       </Card>
+
+      <UserFormDialog
+        open={isFormOpen}
+        onOpenChange={setIsFormOpen}
+        user={editingUser}
+        onSave={handleSaveUser}
+      />
+
+      <DeleteConfirmDialog
+        open={deleteDialog.open}
+        onOpenChange={(open) => setDeleteDialog({ open })}
+        title="Xác nhận xóa người dùng"
+        description={`Bạn có chắc chắn muốn xóa người dùng "${deleteDialog.user?.name}"? Hành động này không thể hoàn tác.`}
+        onConfirm={confirmDelete}
+      />
     </div>
   );
 }

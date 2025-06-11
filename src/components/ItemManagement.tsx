@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Search } from 'lucide-react';
+import { Plus, Search, Edit, Trash2 } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -13,8 +13,21 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { ItemFormDialog } from '@/components/ItemFormDialog';
+import { DeleteConfirmDialog } from '@/components/DeleteConfirmDialog';
+import { useToast } from '@/hooks/use-toast';
 
-const items = [
+interface Item {
+  id: number;
+  name: string;
+  category: string;
+  description: string;
+  price: string;
+  status: string;
+  lastUpdate: string;
+}
+
+const initialItems: Item[] = [
   {
     id: 1,
     name: 'Visual Studio Code',
@@ -45,13 +58,62 @@ const items = [
 ];
 
 export function ItemManagement() {
+  const [items, setItems] = useState<Item[]>(initialItems);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<Item | undefined>();
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; item?: Item }>({ open: false });
+  const { toast } = useToast();
 
   const filteredItems = items.filter(item =>
     item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.description.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const handleAddItem = () => {
+    setEditingItem(undefined);
+    setIsFormOpen(true);
+  };
+
+  const handleEditItem = (item: Item) => {
+    setEditingItem(item);
+    setIsFormOpen(true);
+  };
+
+  const handleSaveItem = (itemData: Omit<Item, 'id' | 'lastUpdate'>) => {
+    const currentDate = new Date().toISOString().split('T')[0];
+    
+    if (editingItem) {
+      setItems(items.map(item => 
+        item.id === editingItem.id 
+          ? { ...item, ...itemData, lastUpdate: currentDate }
+          : item
+      ));
+    } else {
+      const newItem: Item = {
+        id: Math.max(...items.map(i => i.id)) + 1,
+        ...itemData,
+        lastUpdate: currentDate,
+      };
+      setItems([...items, newItem]);
+    }
+  };
+
+  const handleDeleteItem = (item: Item) => {
+    setDeleteDialog({ open: true, item });
+  };
+
+  const confirmDelete = () => {
+    if (deleteDialog.item) {
+      setItems(items.filter(i => i.id !== deleteDialog.item!.id));
+      toast({
+        title: "Xóa thành công",
+        description: `Mục ${deleteDialog.item.name} đã được xóa.`,
+      });
+    }
+    setDeleteDialog({ open: false });
+  };
 
   return (
     <div className="space-y-6">
@@ -62,7 +124,7 @@ export function ItemManagement() {
             Quản lý các mục danh mục trong hệ thống
           </p>
         </div>
-        <Button>
+        <Button onClick={handleAddItem}>
           <Plus className="h-4 w-4 mr-2" />
           Thêm mới
         </Button>
@@ -120,10 +182,20 @@ export function ItemManagement() {
                     <TableCell>{item.lastUpdate}</TableCell>
                     <TableCell>
                       <div className="flex space-x-2">
-                        <Button variant="outline" size="sm">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleEditItem(item)}
+                        >
+                          <Edit className="h-3 w-3 mr-1" />
                           Sửa
                         </Button>
-                        <Button variant="outline" size="sm">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleDeleteItem(item)}
+                        >
+                          <Trash2 className="h-3 w-3 mr-1" />
                           Xóa
                         </Button>
                       </div>
@@ -135,6 +207,21 @@ export function ItemManagement() {
           </div>
         </CardContent>
       </Card>
+
+      <ItemFormDialog
+        open={isFormOpen}
+        onOpenChange={setIsFormOpen}
+        item={editingItem}
+        onSave={handleSaveItem}
+      />
+
+      <DeleteConfirmDialog
+        open={deleteDialog.open}
+        onOpenChange={(open) => setDeleteDialog({ open })}
+        title="Xác nhận xóa mục danh mục"
+        description={`Bạn có chắc chắn muốn xóa mục "${deleteDialog.item?.name}"? Hành động này không thể hoàn tác.`}
+        onConfirm={confirmDelete}
+      />
     </div>
   );
 }

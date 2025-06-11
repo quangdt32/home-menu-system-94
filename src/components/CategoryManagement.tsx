@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Search } from 'lucide-react';
+import { Plus, Search, Edit, Trash2 } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -13,8 +13,20 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { CategoryFormDialog } from '@/components/CategoryFormDialog';
+import { DeleteConfirmDialog } from '@/components/DeleteConfirmDialog';
+import { useToast } from '@/hooks/use-toast';
 
-const categories = [
+interface Category {
+  id: number;
+  name: string;
+  description: string;
+  itemCount: number;
+  status: string;
+  lastUpdate: string;
+}
+
+const initialCategories: Category[] = [
   {
     id: 1,
     name: 'Phần mềm',
@@ -42,12 +54,62 @@ const categories = [
 ];
 
 export function CategoryManagement() {
+  const [categories, setCategories] = useState<Category[]>(initialCategories);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<Category | undefined>();
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; category?: Category }>({ open: false });
+  const { toast } = useToast();
 
   const filteredCategories = categories.filter(category =>
     category.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     category.description.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const handleAddCategory = () => {
+    setEditingCategory(undefined);
+    setIsFormOpen(true);
+  };
+
+  const handleEditCategory = (category: Category) => {
+    setEditingCategory(category);
+    setIsFormOpen(true);
+  };
+
+  const handleSaveCategory = (categoryData: Omit<Category, 'id' | 'itemCount' | 'lastUpdate'>) => {
+    const currentDate = new Date().toISOString().split('T')[0];
+    
+    if (editingCategory) {
+      setCategories(categories.map(category => 
+        category.id === editingCategory.id 
+          ? { ...category, ...categoryData, lastUpdate: currentDate }
+          : category
+      ));
+    } else {
+      const newCategory: Category = {
+        id: Math.max(...categories.map(c => c.id)) + 1,
+        ...categoryData,
+        itemCount: 0,
+        lastUpdate: currentDate,
+      };
+      setCategories([...categories, newCategory]);
+    }
+  };
+
+  const handleDeleteCategory = (category: Category) => {
+    setDeleteDialog({ open: true, category });
+  };
+
+  const confirmDelete = () => {
+    if (deleteDialog.category) {
+      setCategories(categories.filter(c => c.id !== deleteDialog.category!.id));
+      toast({
+        title: "Xóa thành công",
+        description: `Nhóm danh mục ${deleteDialog.category.name} đã được xóa.`,
+      });
+    }
+    setDeleteDialog({ open: false });
+  };
 
   return (
     <div className="space-y-6">
@@ -58,7 +120,7 @@ export function CategoryManagement() {
             Quản lý các nhóm danh mục trong hệ thống
           </p>
         </div>
-        <Button>
+        <Button onClick={handleAddCategory}>
           <Plus className="h-4 w-4 mr-2" />
           Thêm mới
         </Button>
@@ -114,10 +176,20 @@ export function CategoryManagement() {
                     <TableCell>{category.lastUpdate}</TableCell>
                     <TableCell>
                       <div className="flex space-x-2">
-                        <Button variant="outline" size="sm">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleEditCategory(category)}
+                        >
+                          <Edit className="h-3 w-3 mr-1" />
                           Sửa
                         </Button>
-                        <Button variant="outline" size="sm">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleDeleteCategory(category)}
+                        >
+                          <Trash2 className="h-3 w-3 mr-1" />
                           Xóa
                         </Button>
                       </div>
@@ -129,6 +201,21 @@ export function CategoryManagement() {
           </div>
         </CardContent>
       </Card>
+
+      <CategoryFormDialog
+        open={isFormOpen}
+        onOpenChange={setIsFormOpen}
+        category={editingCategory}
+        onSave={handleSaveCategory}
+      />
+
+      <DeleteConfirmDialog
+        open={deleteDialog.open}
+        onOpenChange={(open) => setDeleteDialog({ open })}
+        title="Xác nhận xóa nhóm danh mục"
+        description={`Bạn có chắc chắn muốn xóa nhóm danh mục "${deleteDialog.category?.name}"? Hành động này không thể hoàn tác.`}
+        onConfirm={confirmDelete}
+      />
     </div>
   );
 }
